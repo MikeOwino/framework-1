@@ -2443,7 +2443,7 @@ __metadata:
     externality: ^0.1.5
     fs-extra: ^10.0.0
     globby: ^11.0.4
-    h3: ^0.3.3
+    h3: ^0.3.5
     hash-sum: ^2.0.0
     magic-string: ^0.25.7
     mlly: ^0.3.13
@@ -2820,7 +2820,7 @@ __metadata:
     fs-extra: ^10.0.0
     globby: ^11.0.4
     gzip-size: ^6.0.0
-    h3: ^0.3.3
+    h3: ^0.3.5
     hasha: ^5.2.2
     hookable: ^5.0.0
     http-proxy: ^1.18.1
@@ -3182,7 +3182,7 @@ __metadata:
     mlly: ^0.3.13
     pathe: ^0.2.0
     pify: ^5.0.0
-    postcss: ^8.4.0
+    postcss: ^8.4.1
     postcss-import: ^14.0.2
     postcss-import-resolver: ^2.0.0
     postcss-loader: ^6.2.0
@@ -3195,7 +3195,7 @@ __metadata:
     vue: 3.2.22
     vue-loader: ^16.8.3
     vue-style-loader: ^4.1.3
-    webpack: ^5.64.3
+    webpack: ^5.64.4
     webpack-bundle-analyzer: ^4.5.0
     webpack-dev-middleware: ^5.2.2
     webpack-hot-middleware: ^2.25.1
@@ -11619,6 +11619,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"h3@npm:^0.3.5":
+  version: 0.3.5
+  resolution: "h3@npm:0.3.5"
+  checksum: 238a5fc3c7aeb5dec8ccdeece3855be7c9fc7ce8a6ca6e08e6c8a26529b91d0c7da971c453e1b843a48c376cea878f56d2b6ac32663d4600981f065d56aa4561
+  languageName: node
+  linkType: hard
+
 "hable@npm:^3.0.0":
   version: 3.0.0
   resolution: "hable@npm:3.0.0"
@@ -15316,7 +15323,7 @@ __metadata:
     defu: ^5.0.0
     destr: ^1.1.0
     globby: ^11.0.4
-    h3: ^0.3.3
+    h3: ^0.3.5
     hash-sum: ^2.0.0
     hookable: ^5.0.0
     ignore: ^5.1.9
@@ -17813,14 +17820,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"postcss@npm:^8.4.0":
-  version: 8.4.0
-  resolution: "postcss@npm:8.4.0"
+"postcss@npm:^8.4.1":
+  version: 8.4.1
+  resolution: "postcss@npm:8.4.1"
   dependencies:
     nanoid: ^3.1.30
     picocolors: ^1.0.0
     source-map-js: ^1.0.1
-  checksum: 5139eb1b8708a98cbc5240d1540b9333de5a6bde2737e946ec3d680968df42937ef43c54ed6eb50f1077b4de0394031bbecec290ebf8b4f5650cd4657e63b5d6
+  checksum: 89ede712ccca478f3d3bc4137eac8efa9cc434ab193ae5348dfba343ab5144faa39a71e3cf53e2b45bc01e705829259706f9610d7c7c46a7a3affccd56b3e74f
   languageName: node
   linkType: hard
 
@@ -21608,6 +21615,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"watchpack@npm:^2.3.0":
+  version: 2.3.0
+  resolution: "watchpack@npm:2.3.0"
+  dependencies:
+    glob-to-regexp: ^0.4.1
+    graceful-fs: ^4.1.2
+  checksum: 54f577fe311ae6130b43c3202ddc5c66ea8cdc5e0569b6e1dbccf5c0f5f4f8d4d00b7b97f6ae6d53e9361766bf0dc4e6dc7b30e57392948af9795217f6d9d7a7
+  languageName: node
+  linkType: hard
+
 "wcwidth@npm:^1.0.0, wcwidth@npm:^1.0.1":
   version: 1.0.1
   resolution: "wcwidth@npm:1.0.1"
@@ -21851,9 +21868,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"webpack@npm:^5.64.3":
-  version: 5.64.3
-  resolution: "webpack@npm:5.64.3"
+"webpack@npm:^5.64.4":
+  version: 5.64.4
+  resolution: "webpack@npm:5.64.4"
   dependencies:
     "@types/eslint-scope": ^3.7.0
     "@types/estree": ^0.0.50
@@ -21877,14 +21894,14 @@ __metadata:
     schema-utils: ^3.1.0
     tapable: ^2.1.1
     terser-webpack-plugin: ^5.1.3
-    watchpack: ^2.2.0
+    watchpack: ^2.3.0
     webpack-sources: ^3.2.2
   peerDependenciesMeta:
     webpack-cli:
       optional: true
   bin:
     webpack: bin/webpack.js
-  checksum: dc773c260b5db95d7c0e9aec079e9ed30a154420e3fc7fb46bd4f9b98714f322d8effe6534d5a3a17157f2c514a6edb26494585de4f1c92329980e04de235dd3
+  checksum: 62ac598291374fa5269c80fcd82ad3cbf8e8c3f837c2bf6ea80812812154d9f4d3390c6fdc1ce85323e6fdd46132e3e3db08cde9a1b4d61197879e867c7c1375
   languageName: node
   linkType: hard
 
