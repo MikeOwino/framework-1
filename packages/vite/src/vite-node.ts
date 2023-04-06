@@ -2,7 +2,7 @@ import { pathToFileURL } from 'node:url'
 import { createApp, createError, defineEventHandler, defineLazyEventHandler, eventHandler, toNodeListener } from 'h3'
 import { ViteNodeServer } from 'vite-node/server'
 import fse from 'fs-extra'
-import { resolve } from 'pathe'
+import { resolve, normalize } from 'pathe'
 import { addDevServerHandler } from '@nuxt/kit'
 import type { ModuleNode, Plugin as VitePlugin } from 'vite'
 import { normalizeViteManifest } from 'vue-bundle-renderer'
@@ -11,31 +11,60 @@ import { distDir } from './dirs'
 import type { ViteBuildContext } from './vite'
 import { isCSS } from './utils'
 import { createIsExternal } from './utils/external'
+import { transpile } from './utils/transpile'
 
 // TODO: Remove this in favor of registerViteNodeMiddleware
 // after Nitropack or h3 fixed for adding middlewares after setup
 export function viteNodePlugin (ctx: ViteBuildContext): VitePlugin {
   // Store the invalidates for the next rendering
   const invalidates = new Set<string>()
+
+  function markInvalidate (mod: ModuleNode) {
+    if (!mod.id) { return }
+    if (invalidates.has(mod.id)) { return }
+    invalidates.add(mod.id)
+    markInvalidates(mod.importers)
+  }
+
+  function markInvalidates (mods?: ModuleNode[] | Set<ModuleNode>) {
+    if (!mods) { return }
+    for (const mod of mods) {
+      markInvalidate(mod)
+    }
+  }
+
   return {
     name: 'nuxt:vite-node-server',
     enforce: 'post',
     configureServer (server) {
-      server.middlewares.use('/__nuxt_vite_node__', toNodeListener(createViteNodeApp(ctx, invalidates)))
-    },
-    handleHotUpdate ({ file, server }) {
-      function markInvalidate (mod: ModuleNode) {
-        if (!mod.id) { return }
-        if (invalidates.has(mod.id)) { return }
-        invalidates.add(mod.id)
-        for (const importer of mod.importers) {
-          markInvalidate(importer)
+      function invalidateVirtualModules () {
+        for (const [id, mod] of server.moduleGraph.idToModuleMap) {
+          if (id.startsWith('virtual:')) {
+            markInvalidate(mod)
+          }
+        }
+        for (const plugin of ctx.nuxt.options.plugins) {
+          markInvalidates(server.moduleGraph.getModulesByFile(typeof plugin === 'string' ? plugin : plugin.src))
+        }
+        for (const template of ctx.nuxt.options.build.templates) {
+          markInvalidates(server.moduleGraph.getModulesByFile(template?.src))
         }
       }
-      const mods = server.moduleGraph.getModulesByFile(file) || []
-      for (const mod of mods) {
-        markInvalidate(mod)
-      }
+
+      server.middlewares.use('/__nuxt_vite_node__', toNodeListener(createViteNodeApp(ctx, invalidates)))
+
+      // Invalidate all virtual modules when templates are regenerated
+      ctx.nuxt.hook('app:templatesGenerated', () => {
+        invalidateVirtualModules()
+      })
+
+      server.watcher.on('all', (event, file) => {
+        markInvalidates(server.moduleGraph.getModulesByFile(normalize(file)))
+        // Invalidate all virtual modules when a file is added or removed
+        if (event === 'add' || event === 'unlink') {
+          invalidateVirtualModules()
+        }
+      })
     }
   }
 }
@@ -90,7 +119,7 @@ function createViteNodeApp (ctx: ViteBuildContext, invalidates: Set<string> = ne
         inline: [
           /\/(nuxt|nuxt3)\//,
           /^#/,
-          ...ctx.nuxt.options.build.transpile as string[]
+          ...transpile({ isServer: true, isDev: ctx.nuxt.options.dev })
         ]
       },
       transformMode: {
@@ -108,7 +137,7 @@ function createViteNodeApp (ctx: ViteBuildContext, invalidates: Set<string> = ne
     }
 
     return eventHandler(async (event) => {
-      const moduleId = decodeURI(event.req.url!).substring(1)
+      const moduleId = decodeURI(event.node.req.url!).substring(1)
       if (moduleId === '/') {
         throw createError({ statusCode: 400 })
       }
@@ -131,7 +160,7 @@ function createViteNodeApp (ctx: ViteBuildContext, invalidates: Set<string> = ne
 export async function initViteNodeServer (ctx: ViteBuildContext) {
   // Serialize and pass vite-node runtime options
   const viteNodeServerOptions = {
-    baseURL: `${ctx.nuxt.options.server.url}__nuxt_vite_node__`,
+    baseURL: `${ctx.nuxt.options.devServer.url}__nuxt_vite_node__`,
     root: ctx.nuxt.options.srcDir,
     entryPath: ctx.entry,
     base: ctx.ssrServer!.config.base || '/_nuxt/'

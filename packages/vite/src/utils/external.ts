@@ -1,5 +1,6 @@
-import { ExternalsOptions, ExternalsDefaults, isExternal } from 'externality'
-import { ViteDevServer } from 'vite'
+import type { ExternalsOptions } from 'externality'
+import { ExternalsDefaults, isExternal } from 'externality'
+import type { ViteDevServer } from 'vite'
 
 export function createIsExternal (viteServer: ViteDevServer, rootDir: string) {
   const externalOpts: ExternalsOptions = {
@@ -7,7 +8,7 @@ export function createIsExternal (viteServer: ViteDevServer, rootDir: string) {
       /virtual:/,
       /\.ts$/,
       ...ExternalsDefaults.inline || [],
-      ...viteServer.config.ssr.noExternal as string[]
+      ...Array.isArray(viteServer.config.ssr.noExternal) ? viteServer.config.ssr.noExternal : []
     ],
     external: [
       ...viteServer.config.ssr.external || [],

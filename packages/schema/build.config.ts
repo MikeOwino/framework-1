@@ -15,14 +15,13 @@ export default defineBuildConfig({
         }
       }
     },
-    'src/index'
+    'src/index',
   ],
   externals: [
     // Type imports
-    'vue-meta',
     'vue-router',
     'vue-bundle-renderer',
-    '@vueuse/head',
+    '@unhead/schema',
     'vue',
     'hookable',
     'nitropack',
@@ -31,6 +30,7 @@ export default defineBuildConfig({
     'rollup-plugin-visualizer',
     'vite',
     '@vitejs/plugin-vue',
+    '@vitejs/plugin-vue-jsx',
     'mini-css-extract-plugin',
     'terser-webpack-plugin',
     'css-minimizer-webpack-plugin',

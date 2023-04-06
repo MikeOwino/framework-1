@@ -1,6 +1,8 @@
-import { createError as _createError, H3Error } from 'h3'
+import type { H3Error } from 'h3'
+import { createError as _createError } from 'h3'
 import { toRef } from 'vue'
 import { useNuxtApp } from '../nuxt'
+import { useRouter } from './router'
 
 export const useError = () => toRef(useNuxtApp().payload, 'error')
 
@@ -21,15 +23,12 @@ export const showError = (_err: string | Error | Partial<NuxtError>) => {
   return err
 }
 
-/** @deprecated Use `throw createError()` or `showError` */
-export const throwError = showError
-
 export const clearError = async (options: { redirect?: string } = {}) => {
   const nuxtApp = useNuxtApp()
   const error = useError()
   nuxtApp.callHook('app:error:cleared', options)
   if (options.redirect) {
-    await nuxtApp.$router.replace(options.redirect)
+    await useRouter().replace(options.redirect)
   }
   error.value = null
 }

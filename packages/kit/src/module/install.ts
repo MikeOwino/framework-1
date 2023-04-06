@@ -1,8 +1,9 @@
 import type { Nuxt, NuxtModule } from '@nuxt/schema'
+import { isNuxt2 } from '../compatibility'
 import { useNuxt } from '../context'
-import { resolveModule, requireModule, importModule } from '../internal/cjs'
+import { resolveModule, requireModule } from '../internal/cjs'
+import { importModule } from '../internal/esm'
 import { resolveAlias } from '../resolve'
-import { useModuleContainer } from './container'
 
 /** Installs a module on a Nuxt instance. */
 export async function installModule (moduleToInstall: string | NuxtModule, _inlineOptions?: any, _nuxt?: Nuxt) {
@@ -10,16 +11,24 @@ export async function installModule (moduleToInstall: string | NuxtModule, _inli
   const { nuxtModule, inlineOptions } = await normalizeModule(moduleToInstall, _inlineOptions)
 
   // Call module
-  await nuxtModule.call(
-    // Provide this context for backwards compatibility with Nuxt 2
-    useModuleContainer() as any,
-    inlineOptions,
-    nuxt
-  )
+  const res = (
+    isNuxt2()
+      // @ts-expect-error Nuxt 2 `moduleContainer` is not typed
+      ? await nuxtModule.call(nuxt.moduleContainer, inlineOptions, nuxt)
+      : await nuxtModule(inlineOptions, nuxt)
+  ) ?? {}
+  if (res === false /* setup aborted */) {
+    return
+  }
+
+  if (typeof moduleToInstall === 'string') {
+    nuxt.options.build.transpile.push(moduleToInstall)
+  }
 
   nuxt.options._installedModules = nuxt.options._installedModules || []
   nuxt.options._installedModules.push({
     meta: await nuxtModule.getMeta?.(),
+    timings: res.timings,
     entryPath: typeof moduleToInstall === 'string' ? resolveAlias(moduleToInstall) : undefined
   })
 }
@@ -29,14 +38,6 @@ export async function installModule (moduleToInstall: string | NuxtModule, _inli
 async function normalizeModule (nuxtModule: string | NuxtModule, inlineOptions?: any) {
   const nuxt = useNuxt()
 
-  // Detect if `installModule` used with older signuture (nuxt, nuxtModule)
-  // TODO: Remove in RC
-  // @ts-ignore
-  if (nuxtModule?._version || nuxtModule?.version || nuxtModule?.constructor?.version || '') {
-    [nuxtModule, inlineOptions] = [inlineOptions, {}]
-    console.warn(new Error('`installModule` is being called with old signature!'))
-  }
-
   // Import if input is string
   if (typeof nuxtModule === 'string') {
     const _src = resolveModule(resolveAlias(nuxtModule), { paths: nuxt.options.modulesDir })
@@ -44,7 +45,7 @@ async function normalizeModule (nuxtModule: string | NuxtModule, inlineOptions?:
     const isESM = _src.endsWith('.mjs')
 
     try {
-      nuxtModule = isESM ? await importModule(_src) : requireModule(_src)
+      nuxtModule = isESM ? await importModule(_src, nuxt.options.rootDir) : requireModule(_src)
     } catch (error: unknown) {
       console.error(`Error while requiring module \`${nuxtModule}\`: ${error}`)
       throw error

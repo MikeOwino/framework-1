@@ -1,9 +1,11 @@
 import { statSync } from 'node:fs'
 import { relative, resolve } from 'pathe'
-import { defineNuxtModule, resolveAlias, addTemplate, addPluginTemplate } from '@nuxt/kit'
-import type { Component, ComponentsDir, ComponentsOptions } from '@nuxt/schema'
+import { defineNuxtModule, resolveAlias, addTemplate, addPluginTemplate, updateTemplates } from '@nuxt/kit'
+import type { Component, ComponentsDir, ComponentsOptions } from 'nuxt/schema'
+
 import { distDir } from '../dirs'
-import { componentsPluginTemplate, componentsTemplate, componentsTypeTemplate } from './templates'
+import { clientFallbackAutoIdPlugin } from './client-fallback-auto-id'
+import { componentsPluginTemplate, componentsTemplate, componentsIslandsTemplate, componentsTypeTemplate } from './templates'
 import { scanComponents } from './scan'
 import { loaderPlugin } from './loader'
 import { TreeShakeTemplatePlugin } from './tree-shake'
@@ -14,7 +16,7 @@ function compareDirByPathLength ({ path: pathA }: { path: string }, { path: path
   return pathB.split(/[\\/]/).filter(Boolean).length - pathA.split(/[\\/]/).filter(Boolean).length
 }
 
-const DEFAULT_COMPONENTS_DIRS_RE = /\/components$|\/components\/global$/
+const DEFAULT_COMPONENTS_DIRS_RE = /\/components(\/global|\/islands)?$/
 
 type getComponentsT = (mode?: 'client' | 'server' | 'all') => Component[]
 
@@ -44,6 +46,7 @@ export default defineNuxtModule<ComponentsOptions>({
       }
       if (dir === true || dir === undefined) {
         return [
+          { path: resolve(cwd, 'components/islands'), island: true },
           { path: resolve(cwd, 'components/global'), global: true },
           { path: resolve(cwd, 'components') }
         ]
@@ -78,11 +81,8 @@ export default defineNuxtModule<ComponentsOptions>({
         const transpile = typeof dirOptions.transpile === 'boolean' ? dirOptions.transpile : 'auto'
         const extensions = (dirOptions.extensions || nuxt.options.extensions).map(e => e.replace(/^\./g, ''))
 
-        dirOptions.level = Number(dirOptions.level || 0)
-
         const present = isDirectory(dirPath)
         if (!present && !DEFAULT_COMPONENTS_DIRS_RE.test(dirOptions.path)) {
-          // eslint-disable-next-line no-console
           console.warn('Components directory not found: `' + dirPath + '`')
         }
 
@@ -119,15 +119,21 @@ export default defineNuxtModule<ComponentsOptions>({
     addTemplate({ ...componentsTemplate, filename: 'components.server.mjs', options: { getComponents, mode: 'server' } })
     // components.client.mjs
     addTemplate({ ...componentsTemplate, filename: 'components.client.mjs', options: { getComponents, mode: 'client' } })
+    // components.islands.mjs
+    if (nuxt.options.experimental.componentIslands) {
+      addTemplate({ ...componentsIslandsTemplate, filename: 'components.islands.mjs', options: { getComponents } })
+    } else {
+      addTemplate({ filename: 'components.islands.mjs', getContents: () => 'export default {}' })
+    }
 
     nuxt.hook('vite:extendConfig', (config, { isClient }) => {
       const mode = isClient ? 'client' : 'server'
-      ;(config.resolve!.alias as any)['#components'] = resolve(nuxt.options.buildDir, `components.${mode}.mjs`)
+        ; (config.resolve!.alias as any)['#components'] = resolve(nuxt.options.buildDir, `components.${mode}.mjs`)
     })
     nuxt.hook('webpack:config', (configs) => {
       for (const config of configs) {
         const mode = config.name === 'server' ? 'server' : 'client'
-        ;(config.resolve!.alias as any)['#components'] = resolve(nuxt.options.buildDir, `components.${mode}.mjs`)
+          ; (config.resolve!.alias as any)['#components'] = resolve(nuxt.options.buildDir, `components.${mode}.mjs`)
       }
     })
 
@@ -140,6 +146,17 @@ export default defineNuxtModule<ComponentsOptions>({
           manifest[key].dynamicImports =
             manifest[key].dynamicImports?.filter(i => !sourceFiles.includes(i))
         }
+      }
+    })
+
+    // Restart dev server when component directories are added/removed
+    nuxt.hook('builder:watch', (event, path) => {
+      const isDirChange = ['addDir', 'unlinkDir'].includes(event)
+      const fullPath = resolve(nuxt.options.srcDir, path)
+
+      if (isDirChange && componentDirs.some(dir => dir.path === fullPath)) {
+        console.info(`Directory \`${path}/\` ${event === 'addDir' ? 'created' : 'removed'}`)
+        return nuxt.callHook('restart')
       }
     })
 
@@ -173,7 +190,14 @@ export default defineNuxtModule<ComponentsOptions>({
       }
       const fPath = resolve(nuxt.options.srcDir, path)
       if (componentDirs.find(dir => fPath.startsWith(dir.path))) {
-        await nuxt.callHook('builder:generateApp')
+        await updateTemplates({
+          filter: template => [
+            'components.plugin.mjs',
+            'components.d.ts',
+            'components.server.mjs',
+            'components.client.mjs'
+          ].includes(template.filename)
+        })
       }
     })
 
@@ -181,33 +205,45 @@ export default defineNuxtModule<ComponentsOptions>({
       const mode = isClient ? 'client' : 'server'
 
       config.plugins = config.plugins || []
-      config.plugins.push(loaderPlugin.vite({
-        sourcemap: nuxt.options.sourcemap[mode],
-        getComponents,
-        mode
-      }))
       if (nuxt.options.experimental.treeshakeClientOnly && isServer) {
         config.plugins.push(TreeShakeTemplatePlugin.vite({
           sourcemap: nuxt.options.sourcemap[mode],
           getComponents
         }))
       }
+      config.plugins.push(clientFallbackAutoIdPlugin.vite({
+        sourcemap: nuxt.options.sourcemap[mode],
+        rootDir: nuxt.options.rootDir
+      }))
+      config.plugins.push(loaderPlugin.vite({
+        sourcemap: nuxt.options.sourcemap[mode],
+        getComponents,
+        mode,
+        transform: typeof nuxt.options.components === 'object' && !Array.isArray(nuxt.options.components) ? nuxt.options.components.transform : undefined,
+        experimentalComponentIslands: nuxt.options.experimental.componentIslands
+      }))
     })
     nuxt.hook('webpack:config', (configs) => {
       configs.forEach((config) => {
         const mode = config.name === 'client' ? 'client' : 'server'
         config.plugins = config.plugins || []
-        config.plugins.push(loaderPlugin.webpack({
-          sourcemap: nuxt.options.sourcemap[mode],
-          getComponents,
-          mode
-        }))
         if (nuxt.options.experimental.treeshakeClientOnly && mode === 'server') {
           config.plugins.push(TreeShakeTemplatePlugin.webpack({
             sourcemap: nuxt.options.sourcemap[mode],
             getComponents
           }))
         }
+        config.plugins.push(clientFallbackAutoIdPlugin.webpack({
+          sourcemap: nuxt.options.sourcemap[mode],
+          rootDir: nuxt.options.rootDir
+        }))
+        config.plugins.push(loaderPlugin.webpack({
+          sourcemap: nuxt.options.sourcemap[mode],
+          getComponents,
+          mode,
+          transform: typeof nuxt.options.components === 'object' && !Array.isArray(nuxt.options.components) ? nuxt.options.components.transform : undefined,
+          experimentalComponentIslands: nuxt.options.experimental.componentIslands
+        }))
       })
     })
   }

@@ -18,11 +18,23 @@
     "vue/one-component-per-file": "off",
     "vue/require-default-prop": "off",
     "vue/no-multiple-template-root": "off",
+    "vue/no-v-model-argument": "off",
     "jsdoc/require-jsdoc": "off",
     "jsdoc/require-param": "off",
     "jsdoc/require-returns": "off",
     "jsdoc/require-param-type": "off",
     "no-redeclare": "off",
+    "import/order": [
+      "error",
+      {
+        "pathGroups": [
+          {
+            "pattern": "@nuxt/test-utils",
+            "group": "external"
+          }
+        ]
+      }
+    ],
     "import/no-restricted-paths": [
       "error",
       {
@@ -45,6 +57,12 @@
         ]
       }
     ],
+    "@typescript-eslint/consistent-type-imports": [
+      "error",
+      {
+        "disallowTypeAnnotations": false
+      }
+    ],
     "@typescript-eslint/no-unused-vars": [
       "error",
       {
@@ -56,6 +74,7 @@
   },
   "settings": {
     "jsdoc": {
+      "ignoreInternal": true,
       "tagNamePreference": {
         "warning": "warning",
         "note": "note"

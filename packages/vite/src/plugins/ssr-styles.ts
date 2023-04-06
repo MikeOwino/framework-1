@@ -1,11 +1,10 @@
 import { pathToFileURL } from 'node:url'
-import { Plugin } from 'vite'
+import type { Plugin } from 'vite'
 import { findStaticImports } from 'mlly'
 import { dirname, relative } from 'pathe'
 import { genObjectFromRawEntries } from 'knitwork'
 import { filename } from 'pathe/utils'
 import { parseQuery, parseURL } from 'ufo'
-import { isCSS } from '../utils'
 
 interface SSRStylePluginOptions {
   srcDir: string
@@ -16,7 +15,6 @@ interface SSRStylePluginOptions {
 export function ssrStylesPlugin (options: SSRStylePluginOptions): Plugin {
   const cssMap: Record<string, { files: string[], inBundle: boolean }> = {}
   const idRefMap: Record<string, string> = {}
-  const globalStyles = new Set<string>()
 
   const relativeToSrcDir = (path: string) => relative(options.srcDir, path)
 
@@ -24,6 +22,20 @@ export function ssrStylesPlugin (options: SSRStylePluginOptions): Plugin {
 
   return {
     name: 'ssr-styles',
+    resolveId: {
+      order: 'pre',
+      async handler (id, importer, options) {
+        if (!id.endsWith('.vue')) { return }
+
+        const res = await this.resolve(id, importer, { ...options, skipSelf: true })
+        if (res) {
+          return {
+            ...res,
+            moduleSideEffects: false
+          }
+        }
+      }
+    },
     generateBundle (outputOptions) {
       const emitted: Record<string, string> = {}
       for (const file in cssMap) {
@@ -49,8 +61,6 @@ export function ssrStylesPlugin (options: SSRStylePluginOptions): Plugin {
         })
       }
 
-      const globalStylesArray = Array.from(globalStyles).map(css => idRefMap[css] && this.getFileName(idRefMap[css])).filter(Boolean)
-
       for (const key in emitted) {
         // Track the chunks we are inlining CSS for so we can omit including links to the .css files
         options.chunksWithInlinedCSS.add(key)
@@ -61,12 +71,10 @@ export function ssrStylesPlugin (options: SSRStylePluginOptions): Plugin {
         fileName: 'styles.mjs',
         source:
           [
-            ...globalStylesArray.map((css, i) => `import style_${i} from './${css}';`),
             'const interopDefault = r => r.default || r || []',
-            `export default ${genObjectFromRawEntries([
-              ['entry', `() => [${globalStylesArray.map((_, i) => `style_${i}`).join(', ')}]`],
-              ...Object.entries(emitted).map(([key, value]) => [key, `() => import('./${this.getFileName(value)}').then(interopDefault)`]) as [string, string][]
-            ])}`
+            `export default ${genObjectFromRawEntries(
+              Object.entries(emitted).map(([key, value]) => [key, `() => import('./${this.getFileName(value)}').then(interopDefault)`]) as [string, string][]
+            )}`
           ].join('\n')
       })
     },
@@ -80,14 +88,6 @@ export function ssrStylesPlugin (options: SSRStylePluginOptions): Plugin {
         }
       }
 
-      if (chunk.isEntry) {
-        // Entry
-        for (const mod in chunk.modules) {
-          if (isCSS(mod) && !mod.includes('&used')) {
-            globalStyles.add(relativeToSrcDir(mod))
-          }
-        }
-      }
       return null
     },
     async transform (code, id) {

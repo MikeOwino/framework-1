@@ -1,14 +1,7 @@
-import { defineUnimportPreset, Preset } from 'unimport'
+import type { InlinePreset } from 'unimport'
+import { defineUnimportPreset } from 'unimport'
 
-const commonPresets: Preset[] = [
-  // #head
-  defineUnimportPreset({
-    from: '#head',
-    imports: [
-      'useHead',
-      'useMeta'
-    ]
-  }),
+const commonPresets: InlinePreset[] = [
   // vue-demi (mocked)
   defineUnimportPreset({
     from: 'vue-demi',
@@ -24,11 +17,13 @@ const appPreset = defineUnimportPreset({
   imports: [
     'useAsyncData',
     'useLazyAsyncData',
+    'useNuxtData',
     'refreshNuxtData',
     'clearNuxtData',
     'defineNuxtComponent',
     'useNuxtApp',
     'defineNuxtPlugin',
+    'reloadNuxtApp',
     'useRuntimeConfig',
     'useState',
     'useFetch',
@@ -36,16 +31,16 @@ const appPreset = defineUnimportPreset({
     'useCookie',
     'useRequestHeaders',
     'useRequestEvent',
+    'useRequestFetch',
     'setResponseStatus',
     'setPageLayout',
+    'onNuxtReady',
     'useRouter',
     'useRoute',
-    'useActiveRoute',
     'defineNuxtRouteMiddleware',
     'navigateTo',
     'abortNavigation',
     'addRouteMiddleware',
-    'throwError',
     'showError',
     'clearError',
     'isNuxtError',
@@ -61,6 +56,15 @@ const appPreset = defineUnimportPreset({
     'loadPayload',
     'preloadPayload',
     'isPrerendered'
+  ]
+})
+
+// vue-router
+const routerPreset = defineUnimportPreset({
+  from: '#app',
+  imports: [
+    'onBeforeRouteLeave',
+    'onBeforeRouteUpdate'
   ]
 })
 
@@ -134,11 +138,27 @@ const vuePreset = defineUnimportPreset({
     'useCssVars',
     'useSlots',
     'useTransitionState'
-  ] as Array<keyof typeof import('vue')>
+  ]
 })
 
-export const defaultPresets = [
+const vueTypesPreset = defineUnimportPreset({
+  from: 'vue',
+  type: true,
+  imports: [
+    'Component',
+    'ComponentPublicInstance',
+    'ComputedRef',
+    'InjectionKey',
+    'PropType',
+    'Ref',
+    'VNode'
+  ]
+})
+
+export const defaultPresets: InlinePreset[] = [
   ...commonPresets,
   appPreset,
-  vuePreset
+  routerPreset,
+  vuePreset,
+  vueTypesPreset
 ]

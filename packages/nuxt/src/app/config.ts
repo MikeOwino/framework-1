@@ -1,5 +1,5 @@
-import type { AppConfig } from '@nuxt/schema'
 import { reactive } from 'vue'
+import type { AppConfig } from 'nuxt/schema'
 import { useNuxtApp } from './nuxt'
 // @ts-ignore
 import __appConfig from '#build/app.config.mjs'
@@ -26,6 +26,7 @@ function deepAssign (obj: any, newObj: any) {
   for (const key in newObj) {
     const val = newObj[key]
     if (val !== null && typeof val === 'object') {
+      obj[key] = obj[key] || {}
       deepAssign(obj[key], val)
     } else {
       obj[key] = val
@@ -64,12 +65,12 @@ if (process.dev) {
   // Vite
   if (import.meta.hot) {
     import.meta.hot.accept((newModule) => {
-      const newConfig = newModule._getAppConfig()
+      const newConfig = newModule?._getAppConfig()
       applyHMR(newConfig)
     })
   }
 
-  // Webpack
+  // webpack
   if (import.meta.webpackHot) {
     import.meta.webpackHot.accept('#build/app.config.mjs', () => {
       applyHMR(__appConfig)

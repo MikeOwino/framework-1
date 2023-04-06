@@ -1,8 +1,10 @@
+import { pathToFileURL } from 'node:url'
 import chokidar from 'chokidar'
-import type { Nuxt } from '@nuxt/schema'
-import { importModule, isIgnored } from '@nuxt/kit'
+import { isIgnored, tryResolveModule } from '@nuxt/kit'
 import { debounce } from 'perfect-debounce'
 import { normalize } from 'pathe'
+import type { Nuxt } from 'nuxt/schema'
+
 import { createApp, generateApp as _generateApp } from './app'
 
 export async function build (nuxt: Nuxt) {
@@ -23,13 +25,17 @@ export async function build (nuxt: Nuxt) {
         await generateApp()
       }
     })
-    nuxt.hook('builder:generateApp', generateApp)
+    nuxt.hook('builder:generateApp', (options) => {
+      // Bypass debounce if we are selectively invalidating templates
+      if (options) { return _generateApp(nuxt, app, options) }
+      return generateApp()
+    })
   }
 
-  await nuxt.callHook('build:before', { nuxt }, nuxt.options.build)
+  await nuxt.callHook('build:before')
   if (!nuxt.options._prepare) {
     await bundle(nuxt)
-    await nuxt.callHook('build:done', { nuxt })
+    await nuxt.callHook('build:done')
   }
 
   if (!nuxt.options.dev) {
@@ -57,7 +63,7 @@ function watch (nuxt: Nuxt) {
 async function bundle (nuxt: Nuxt) {
   try {
     const { bundle } = typeof nuxt.options.builder === 'string'
-      ? await importModule(nuxt.options.builder, { paths: nuxt.options.rootDir })
+      ? await loadBuilder(nuxt, nuxt.options.builder)
       : nuxt.options.builder
 
     return bundle(nuxt)
@@ -71,5 +77,12 @@ async function bundle (nuxt: Nuxt) {
     }
 
     throw error
+  }
+}
+
+async function loadBuilder (nuxt: Nuxt, builder: string) {
+  const builderPath = await tryResolveModule(builder, [nuxt.options.rootDir, import.meta.url])
+  if (builderPath) {
+    return import(pathToFileURL(builderPath).href)
   }
 }

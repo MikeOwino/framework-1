@@ -2,14 +2,18 @@ import { resolve, normalize } from 'pathe'
 // @ts-expect-error missing types
 import TimeFixPlugin from 'time-fix-plugin'
 import WebpackBar from 'webpackbar'
+import type { Configuration } from 'webpack'
 import webpack from 'webpack'
 import { logger } from '@nuxt/kit'
 // @ts-expect-error missing types
 import FriendlyErrorsWebpackPlugin from '@nuxt/friendly-errors-webpack-plugin'
 import escapeRegExp from 'escape-string-regexp'
 import { joinURL } from 'ufo'
-import WarningIgnorePlugin, { WarningFilter } from '../plugins/warning-ignore'
-import { WebpackConfigContext, applyPresets, fileName } from '../utils/config'
+import type { NuxtOptions } from '@nuxt/schema'
+import type { WarningFilter } from '../plugins/warning-ignore'
+import WarningIgnorePlugin from '../plugins/warning-ignore'
+import type { WebpackConfigContext } from '../utils/config'
+import { applyPresets, fileName } from '../utils/config'
 
 export function base (ctx: WebpackConfigContext) {
   applyPresets(ctx, [
@@ -38,7 +42,7 @@ function baseConfig (ctx: WebpackConfigContext) {
     mode: ctx.isDev ? 'development' : 'production',
     cache: getCache(ctx),
     output: getOutput(ctx),
-    stats: 'none',
+    stats: statsMap[ctx.nuxt.options.logLevel] ?? statsMap.info,
     ...ctx.config
   }
 }
@@ -63,10 +67,7 @@ function basePlugins (ctx: WebpackConfigContext) {
   config.plugins.push(new webpack.DefinePlugin(getEnv(ctx)))
 
   // Friendly errors
-  if (
-    ctx.isServer ||
-    (ctx.isDev && !options.build.quiet && options.webpack.friendlyErrors)
-  ) {
+  if (ctx.isServer || (ctx.isDev && options.webpack.friendlyErrors)) {
     config.plugins.push(
       new FriendlyErrorsWebpackPlugin({
         clearConsole: false,
@@ -92,23 +93,23 @@ function basePlugins (ctx: WebpackConfigContext) {
         // @ts-ignore
         change: (_, { shortPath }) => {
           if (!ctx.isServer) {
-            nuxt.callHook('bundler:change', shortPath)
+            nuxt.callHook('webpack:change', shortPath)
           }
         },
         // @ts-ignore
         done: ({ state }) => {
           if (state.hasErrors) {
-            nuxt.callHook('bundler:error')
+            nuxt.callHook('webpack:error')
           } else {
             logger.success(`${state.name} ${state.message}`)
           }
         },
         allDone: () => {
-          nuxt.callHook('bundler:done')
+          nuxt.callHook('webpack:done')
         },
         // @ts-ignore
         progress ({ statesArray }) {
-          nuxt.callHook('bundler:progress', statesArray)
+          nuxt.callHook('webpack:progress', statesArray)
         }
       }
     }))
@@ -157,12 +158,14 @@ export function baseTranspile (ctx: WebpackConfigContext) {
   const transpile = [
     /\.vue\.js/i, // include SFCs in node_modules
     /consola\/src/,
-    /vue-demi/
+    /vue-demi/,
+    /(^|\/)nuxt\/(dist\/)?(app|[^/]+\/runtime)($|\/)/
   ]
 
   for (let pattern of options.build.transpile) {
     if (typeof pattern === 'function') {
-      pattern = pattern(ctx)
+      const result = pattern(ctx)
+      if (result) { pattern = result }
     }
     if (typeof pattern === 'string') {
       transpile.push(new RegExp(escapeRegExp(normalize(pattern))))
@@ -230,8 +233,7 @@ function getEnv (ctx: WebpackConfigContext) {
     'process.env.NODE_ENV': JSON.stringify(ctx.config.mode),
     'process.mode': JSON.stringify(ctx.config.mode),
     'process.dev': options.dev,
-    'process.static': options.target === 'static',
-    'process.target': JSON.stringify(options.target),
+    __NUXT_VERSION__: JSON.stringify(ctx.nuxt._version),
     'process.env.VUE_ENV': JSON.stringify(ctx.name),
     'process.browser': ctx.isClient,
     'process.client': ctx.isClient,
@@ -243,10 +245,11 @@ function getEnv (ctx: WebpackConfigContext) {
     _env['typeof window'] = _env['typeof document'] = JSON.stringify(!ctx.isServer ? 'object' : 'undefined')
   }
 
-  Object.entries(options.env).forEach(([key, value]) => {
-    const isNative = ['boolean', 'number'].includes(typeof value)
-    _env['process.env.' + key] = isNative ? value as string : JSON.stringify(value)
-  })
-
   return _env
+}
+
+const statsMap: Record<NuxtOptions['logLevel'], Configuration['stats']> = {
+  silent: 'none',
+  info: 'normal',
+  verbose: 'verbose'
 }

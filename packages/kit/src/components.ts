@@ -1,6 +1,5 @@
 import { pascalCase, kebabCase } from 'scule'
 import type { ComponentsDir, Component } from '@nuxt/schema'
-import { genDynamicImport } from 'knitwork'
 import { useNuxt } from './context'
 import { assertNuxtCompatibility } from './compatibility'
 
@@ -21,7 +20,7 @@ export type AddComponentOptions = { name: string, filePath: string } & Partial<E
 >>
 
 /**
- * Register a directory to be scanned for components and imported only when used.
+ * Register a component by its name and filePath.
  *
  * Requires Nuxt 2.13+
  */
@@ -40,22 +39,25 @@ export async function addComponent (opts: AddComponentOptions) {
     prefetch: false,
     preload: false,
     mode: 'all',
-
-    // Nuxt 2 support
     shortPath: opts.filePath,
-    async: false,
-    level: 0,
-    asyncImport: `${genDynamicImport(opts.filePath)}.then(r => r['${opts.export || 'default'}'])`,
-    import: `require(${JSON.stringify(opts.filePath)})['${opts.export || 'default'}']`,
-
+    priority: 0,
     ...opts
   }
 
   nuxt.hook('components:extend', (components: Component[]) => {
     const existingComponent = components.find(c => (c.pascalName === component.pascalName || c.kebabName === component.kebabName) && c.mode === component.mode)
     if (existingComponent) {
-      const name = existingComponent.pascalName || existingComponent.kebabName
-      console.warn(`Overriding ${name} component.`)
+      const existingPriority = existingComponent.priority ?? 0
+      const newPriority = component.priority ?? 0
+
+      if (newPriority < existingPriority) { return }
+
+      // We override where new component priority is equal or higher
+      // but we warn if they are equal.
+      if (newPriority === existingPriority) {
+        const name = existingComponent.pascalName || existingComponent.kebabName
+        console.warn(`Overriding ${name} component. You can specify a \`priority\` option when calling \`addComponent\` to avoid this warning.`)
+      }
       Object.assign(existingComponent, component)
     } else {
       components.push(component)

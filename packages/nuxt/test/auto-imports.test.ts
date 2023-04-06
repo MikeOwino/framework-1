@@ -3,8 +3,9 @@ import { expect, describe, it } from 'vitest'
 import { join } from 'pathe'
 import { createCommonJS, findExports } from 'mlly'
 import * as VueFunctions from 'vue'
-import { createUnimport, Import } from 'unimport'
-import { Plugin } from 'vite'
+import type { Import } from 'unimport'
+import { createUnimport } from 'unimport'
+import type { Plugin } from 'vite'
 import { TransformPlugin } from '../src/imports/transform'
 import { defaultPresets } from '../src/imports/presets'
 
@@ -53,7 +54,7 @@ describe('imports:transform', () => {
   })
 })
 
-const excludedNuxtHelpers = ['useHydration']
+const excludedNuxtHelpers = ['useHydration', 'useHead', 'useSeoMeta', 'useServerSeoMeta']
 
 describe('imports:nuxt', () => {
   try {
@@ -61,12 +62,13 @@ describe('imports:nuxt', () => {
     const entrypointContents = readFileSync(join(__dirname, '../src/app/composables/index.ts'), 'utf8')
 
     const names = findExports(entrypointContents).flatMap(i => i.names || i.name)
-    for (const name of names) {
+    for (let name of names) {
+      name = name.replace(/\/\*.*\*\//, '').trim()
       if (excludedNuxtHelpers.includes(name)) {
         continue
       }
       it(`should register ${name} globally`, () => {
-        expect(defaultPresets.find(a => a.from === '#app')!.imports).to.include(name)
+        expect(defaultPresets.flatMap(a => a.from === '#app' ? a.imports : [])).to.include(name)
       })
     }
   } catch (e) {
@@ -90,6 +92,7 @@ const excludedVueHelpers = [
   'EffectScope',
   'ReactiveEffect',
   'stop',
+  'assertNumber',
   'camelize',
   'capitalize',
   'normalizeClass',
@@ -98,6 +101,7 @@ const excludedVueHelpers = [
   'toDisplayString',
   'toHandlerKey',
   'BaseTransition',
+  'BaseTransitionPropsValidators',
   'Comment',
   'Fragment',
   'KeepAlive',

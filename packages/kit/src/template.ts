@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { basename, parse, resolve } from 'pathe'
 import hash from 'hash-sum'
 import type { NuxtTemplate, ResolvedNuxtTemplate } from '@nuxt/schema'
-import { useNuxt } from './context'
+import { useNuxt, tryUseNuxt } from './context'
 
 /**
  * Renders given template using lodash template during build into the project buildDir
@@ -45,7 +45,7 @@ export function normalizeTemplate (template: NuxtTemplate<any> | string): Resolv
     }
     if (!template.filename) {
       const srcPath = parse(template.src)
-      template.filename = template.fileName ||
+      template.filename = (template as any).fileName ||
         `${basename(srcPath.dir)}.${srcPath.name}.${hash(template.src)}${srcPath.ext}`
     }
   }
@@ -70,4 +70,13 @@ export function normalizeTemplate (template: NuxtTemplate<any> | string): Resolv
   }
 
   return template as ResolvedNuxtTemplate<any>
+}
+
+/**
+ * Trigger rebuilding Nuxt templates
+ *
+ * You can pass a filter within the options to selectively regenerate a subset of templates.
+ */
+export async function updateTemplates (options?: { filter?: (template: ResolvedNuxtTemplate<any>) => boolean }) {
+  return await tryUseNuxt()?.hooks.callHook('builder:generateApp', options)
 }

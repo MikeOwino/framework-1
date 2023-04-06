@@ -1,20 +1,27 @@
-import { defineNuxtPlugin, loadPayload, isPrerendered, useRouter } from '#app'
+import { parseURL } from 'ufo'
+import { defineNuxtPlugin } from '#app/nuxt'
+import { loadPayload, isPrerendered } from '#app/composables/payload'
+import { useRouter } from '#app/composables/router'
 
 export default defineNuxtPlugin((nuxtApp) => {
   // Only enable behavior if initial page is prerendered
-  // TOOD: Support hybrid and dev
+  // TODO: Support hybrid and dev
   if (!isPrerendered()) {
     return
   }
 
   // Load payload into cache
-  nuxtApp.hooks.hook('link:prefetch', to => loadPayload(to))
+  nuxtApp.hooks.hook('link:prefetch', async (url) => {
+    if (!parseURL(url).protocol) {
+      await loadPayload(url)
+    }
+  })
 
   // Load payload after middleware & once final route is resolved
   useRouter().beforeResolve(async (to, from) => {
     if (to.path === from.path) { return }
     const payload = await loadPayload(to.path)
     if (!payload) { return }
-    Object.assign(nuxtApp.payload.data, payload.data)
+    Object.assign(nuxtApp.static.data, payload.data)
   })
 })

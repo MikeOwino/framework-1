@@ -1,7 +1,9 @@
 import pify from 'pify'
 import webpack from 'webpack'
-import { fromNodeMiddleware, defineEventHandler, NodeMiddleware } from 'h3'
-import webpackDevMiddleware, { OutputFileSystem } from 'webpack-dev-middleware'
+import type { NodeMiddleware } from 'h3'
+import { fromNodeMiddleware, defineEventHandler } from 'h3'
+import type { OutputFileSystem } from 'webpack-dev-middleware'
+import webpackDevMiddleware from 'webpack-dev-middleware'
 import webpackHotMiddleware from 'webpack-hot-middleware'
 import type { Compiler, Watching } from 'webpack'
 
@@ -10,6 +12,7 @@ import { joinURL } from 'ufo'
 import { logger, useNuxt } from '@nuxt/kit'
 import { composableKeysPlugin } from '../../vite/src/plugins/composable-keys'
 import { DynamicBasePlugin } from './plugins/dynamic-base'
+import { ChunkErrorPlugin } from './plugins/chunk'
 import { createMFS } from './utils/mfs'
 import { registerVirtualModules } from './virtual-modules'
 import { client, server } from './configs'
@@ -37,9 +40,14 @@ export async function bundle (nuxt: Nuxt) {
     config.plugins!.push(DynamicBasePlugin.webpack({
       sourcemap: nuxt.options.sourcemap[config.name as 'client' | 'server']
     }))
+    // Emit chunk errors if the user has opted in to `experimental.emitRouteChunkError`
+    if (config.name === 'client' && nuxt.options.experimental.emitRouteChunkError) {
+      config.plugins!.push(new ChunkErrorPlugin())
+    }
     config.plugins!.push(composableKeysPlugin.webpack({
       sourcemap: nuxt.options.sourcemap[config.name as 'client' | 'server'],
-      rootDir: nuxt.options.rootDir
+      rootDir: nuxt.options.rootDir,
+      composables: nuxt.options.optimization.keyedComposables
     }))
 
     // Create compiler
@@ -93,9 +101,6 @@ async function createDevMiddleware (compiler: Compiler) {
     ...hotMiddlewareOptions
   })
 
-  await nuxt.callHook('webpack:devMiddleware', devMiddleware)
-  await nuxt.callHook('webpack:hotMiddleware', hotMiddleware)
-
   // Register devMiddleware on server
   const devHandler = fromNodeMiddleware(devMiddleware as NodeMiddleware)
   const hotHandler = fromNodeMiddleware(hotMiddleware as NodeMiddleware)
@@ -112,13 +117,11 @@ async function compile (compiler: Compiler) {
 
   const { name } = compiler.options
 
-  await nuxt.callHook('build:compile', { name: name!, compiler })
+  await nuxt.callHook('webpack:compile', { name: name!, compiler })
 
   // Load renderer resources after build
   compiler.hooks.done.tap('load-resources', async (stats) => {
-    await nuxt.callHook('build:compiled', { name: name!, compiler, stats })
-    // Reload renderer
-    await nuxt.callHook('build:resources', compiler.outputFileSystem)
+    await nuxt.callHook('webpack:compiled', { name: name!, compiler, stats })
   })
 
   // --- Dev Build ---
@@ -156,14 +159,8 @@ async function compile (compiler: Compiler) {
   const stats = await new Promise<webpack.Stats>((resolve, reject) => compiler.run((err, stats) => err ? reject(err) : resolve(stats!)))
 
   if (stats.hasErrors()) {
-    // non-quiet mode: errors will be printed by webpack itself
     const error = new Error('Nuxt build error')
-    if (nuxt.options.build.quiet === true) {
-      error.stack = stats.toString('errors-only')
-    }
+    error.stack = stats.toString('errors-only')
     throw error
   }
-
-  // Await for renderer to load resources (programmatic, tests and generate)
-  await nuxt.callHook('build:resources')
 }

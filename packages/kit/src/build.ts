@@ -8,13 +8,13 @@ export interface ExtendConfigOptions {
    *
    * @default true
    */
-   dev?: boolean
-   /**
-    * Install plugin on build
-    *
-    * @default true
-    */
-   build?: boolean
+  dev?: boolean
+  /**
+   * Install plugin on build
+   *
+   * @default true
+   */
+  build?: boolean
   /**
    * Install plugin on server side
    *
@@ -30,25 +30,18 @@ export interface ExtendConfigOptions {
 }
 
 export interface ExtendWebpackConfigOptions extends ExtendConfigOptions {
-  /**
-   * Install plugin on modern build
-   *
-   * @default true
-   * @deprecated Nuxt 2 only
-   */
-  modern?: boolean
 }
 
 export interface ExtendViteConfigOptions extends ExtendConfigOptions {}
 
 /**
- * Extend Webpack config
+ * Extend webpack config
  *
  * The fallback function might be called multiple times
  * when applying to both client and server builds.
  */
 export function extendWebpackConfig (
-  fn: ((config: WebpackConfig)=> void),
+  fn: ((config: WebpackConfig) => void),
   options: ExtendWebpackConfigOptions = {}
 ) {
   const nuxt = useNuxt()
@@ -69,13 +62,6 @@ export function extendWebpackConfig (
     }
     if (options.client !== false) {
       const config = configs.find(i => i.name === 'client')
-      if (config) {
-        fn(config)
-      }
-    }
-    // Nuxt 2 backwards compatibility
-    if (options.modern !== false) {
-      const config = configs.find(i => i.name === 'modern')
       if (config) {
         fn(config)
       }
@@ -115,7 +101,7 @@ export function extendViteConfig (
 }
 
 /**
- * Append Webpack plugin to the config.
+ * Append webpack plugin to the config.
  */
 export function addWebpackPlugin (plugin: WebpackPluginInstance | WebpackPluginInstance[], options?: ExtendWebpackConfigOptions) {
   extendWebpackConfig((config) => {
